@@ -100,11 +100,19 @@ router.post("/forgot-password", async (req, res) => {
     if (!email || !emailRegex.test(email))
       return res.status(400).json({ message: "Please provide a valid email address." });
 
+    // ─── Debug: log env values (remove after fixing) ──────────────────────
+    console.log("📧 EMAIL_USER:", process.env.EMAIL_USER);
+    console.log("🔑 EMAIL_PASS:", process.env.EMAIL_PASS ? "SET" : "NOT SET");
+    console.log("🌐 CLIENT_URL:", process.env.CLIENT_URL);
+
     const user = await User.findOne({ email });
 
-    // Always return success to prevent email enumeration
-    if (!user)
+    if (!user) {
+      console.log("⚠️ No user found for email:", email);
       return res.json({ message: "If an account exists for this email, a reset link has been sent." });
+    }
+
+    console.log("✅ User found:", user.email);
 
     // Generate secure token
     const resetToken = crypto.randomBytes(32).toString("hex");
@@ -117,30 +125,39 @@ router.post("/forgot-password", async (req, res) => {
 
     // Build reset URL
     const resetURL = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
+    console.log("🔗 Reset URL:", resetURL);
 
     // Send email
     const transporter = createTransporter();
-    await transporter.sendMail({
-      from: `"PC Builder" <${process.env.EMAIL_USER}>`,
-      to: user.email,
-      subject: "Password Reset Request – PC Builder",
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <h2 style="color: #6366f1;">PC Builder – Password Reset</h2>
-          <p>Hi <strong>${user.name}</strong>,</p>
-          <p>You requested a password reset. Click the button below to set a new password:</p>
-          <a href="${resetURL}" 
-             style="display:inline-block; padding:12px 24px; background:#6366f1; color:#fff;
-                    text-decoration:none; border-radius:6px; margin: 16px 0;">
-            Reset My Password
-          </a>
-          <p style="color:#888; font-size:13px;">This link expires in <strong>1 hour</strong>.</p>
-          <p style="color:#888; font-size:13px;">If you didn't request this, you can safely ignore this email.</p>
-          <hr style="border:none; border-top:1px solid #eee; margin-top:24px;" />
-          <p style="color:#aaa; font-size:12px;">PC Builder App</p>
-        </div>
-      `,
-    });
+
+    try {
+      await transporter.sendMail({
+        from: `"PC Builder" <${process.env.EMAIL_USER}>`,
+        to: user.email,
+        subject: "Password Reset Request – PC Builder",
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h2 style="color: #6366f1;">PC Builder – Password Reset</h2>
+            <p>Hi <strong>${user.name}</strong>,</p>
+            <p>You requested a password reset. Click the button below to set a new password:</p>
+            <a href="${resetURL}" 
+               style="display:inline-block; padding:12px 24px; background:#6366f1; color:#fff;
+                      text-decoration:none; border-radius:6px; margin: 16px 0;">
+              Reset My Password
+            </a>
+            <p style="color:#888; font-size:13px;">This link expires in <strong>1 hour</strong>.</p>
+            <p style="color:#888; font-size:13px;">If you didn't request this, you can safely ignore this email.</p>
+            <hr style="border:none; border-top:1px solid #eee; margin-top:24px;" />
+            <p style="color:#aaa; font-size:12px;">PC Builder App</p>
+          </div>
+        `,
+      });
+      console.log("✅ Email sent successfully to:", user.email);
+    } catch (emailError) {
+      console.error("❌ Email send failed:", emailError.message);
+      console.error("❌ Full error:", emailError);
+      return res.status(500).json({ message: "Failed to send reset email. Please try again." });
+    }
 
     return res.json({ message: "If an account exists for this email, a reset link has been sent." });
   } catch (error) {
@@ -158,7 +175,6 @@ router.post("/reset-password/:token", async (req, res) => {
     if (!password || password.length < 6)
       return res.status(400).json({ message: "Password must be at least 6 characters." });
 
-    // Hash the incoming token to compare with DB
     const hashedToken = crypto.createHash("sha256").update(token).digest("hex");
 
     const user = await User.findOne({
@@ -169,7 +185,6 @@ router.post("/reset-password/:token", async (req, res) => {
     if (!user)
       return res.status(400).json({ message: "Reset link is invalid or has expired." });
 
-    // Update password and clear reset fields
     user.password = await bcrypt.hash(password, 10);
     user.resetPasswordToken = undefined;
     user.resetPasswordExpires = undefined;
