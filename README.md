@@ -58,6 +58,19 @@ npm run dev
 
 The API starts on `http://localhost:5000`.
 
+For production forgot-password support on Render, set these backend environment variables:
+
+```env
+CLIENT_URL=https://your-vercel-domain.vercel.app
+ALLOWED_ORIGINS=https://your-vercel-domain.vercel.app
+EMAIL_USER=your-smtp-user
+EMAIL_PASS=your-smtp-password
+EMAIL_FROM=your-smtp-user
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+```
+
 ### 2. Frontend
 
 ```bash
@@ -78,6 +91,12 @@ npm run dev
 ```
 
 The app starts on `http://localhost:5173`.
+
+For Vercel, set:
+
+```env
+VITE_API_URL=https://your-render-backend.onrender.com
+```
 
 ## Test Commands
 
