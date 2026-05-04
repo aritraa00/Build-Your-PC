@@ -19,11 +19,16 @@ const signToken = (user) =>
 // ─── Nodemailer transporter ───────────────────────────────────────────────────
 const createTransporter = () =>
   nodemailer.createTransport({
-    service: "gmail",
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
     auth: {
       user: process.env.EMAIL_USER,
       pass: process.env.EMAIL_PASS,
     },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 10000,
   });
 
 // ─── REGISTER ─────────────────────────────────────────────────────────────────
@@ -100,7 +105,7 @@ router.post("/forgot-password", async (req, res) => {
     if (!email || !emailRegex.test(email))
       return res.status(400).json({ message: "Please provide a valid email address." });
 
-    // ─── Debug: log env values (remove after fixing) ──────────────────────
+    // ─── Debug logs ───────────────────────────────────────────────────────
     console.log("📧 EMAIL_USER:", process.env.EMAIL_USER);
     console.log("🔑 EMAIL_PASS:", process.env.EMAIL_PASS ? "SET" : "NOT SET");
     console.log("🌐 CLIENT_URL:", process.env.CLIENT_URL);
@@ -114,20 +119,16 @@ router.post("/forgot-password", async (req, res) => {
 
     console.log("✅ User found:", user.email);
 
-    // Generate secure token
     const resetToken = crypto.randomBytes(32).toString("hex");
     const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
 
-    // Save to user (expires in 1 hour)
     user.resetPasswordToken = hashedToken;
     user.resetPasswordExpires = Date.now() + 60 * 60 * 1000;
     await user.save();
 
-    // Build reset URL
     const resetURL = `${process.env.CLIENT_URL}/reset-password/${resetToken}`;
     console.log("🔗 Reset URL:", resetURL);
 
-    // Send email
     const transporter = createTransporter();
 
     try {
